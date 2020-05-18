@@ -1,0 +1,132 @@
+Установка системы на внешний диск
+От BerryBoot я отказался (ввиду корявости монтирования файловой системы) в пользу банальной подмены UUID https://jamesachambers…-for-ssd-flash-drives/
+Все оказалось очень просто:
+Шаг 1:
+Скачиваем образ интересующей нас системы (В моем случае Raspbian).
+Шаг 2:
+Шьем образ с помощью Win32DiskImager или balenaEtcher на MicroSD и внешний диск (у меня SSD). Добавляем пустой файл с именем SSH на оба носителя.
+Шаг 3:
+Грузим RaspberryPi 4 с MicroSD (с отключенным внешним носителем) и первично настраиваем (не делаем apt-get upgrade/dist-upgrade и других настроек).
+Шаг 4:
+Подключаем внешний носитель.
+Шаг 5:
+Меняем PARTUUID (На данный момент у обоих носителей он одинаковый)
+Посмотреть UUID можно командой
+$ sudo blkid
+/dev/mmcblk0p1: LABEL_FATBOOT="boot" LABEL="boot" UUID="5203-DB74" TYPE="vfat" PARTUUID="6c586e13-01"
+/dev/mmcblk0p2: LABEL="rootfs" UUID="2ab3f8e1-7dc6-43f5-b0db-dd5759d51d4e" TYPE="ext4" PARTUUID="6c586e13-02"
+/dev/sda1: LABEL_FATBOOT="boot" LABEL="boot" UUID="5203-DB74" TYPE="vfat" PARTUUID="6c586e13-01"
+/dev/sda2: LABEL="rootfs" UUID="2ab3f8e1-7dc6-43f5-b0db-dd5759d51d4e" TYPE="ext4" PARTUUID="6c586e13-02"
+
+$ sudo fdisk /dev/sda
+
+ Welcome to fdisk (util-linux 2.33.1).
+ Changes will remain in memory only, until you decide to write them.
+ Be careful before using the write command.
+ Command (m for help): p
+ Disk /dev/sda: 238.5 GiB, 256060514304 bytes, 500118192 sectors
+ Disk model: ASM105x
+ Units: sectors of 1 * 512 = 512 bytes
+ Sector size (logical/physical): 512 bytes / 512 bytes
+ I/O size (minimum/optimal): 512 bytes / 512 bytes
+ Disklabel type: dos
+ Disk identifier: 0x6c586e13
+ Device     Boot  Start       End   Sectors   Size Id Type
+ /dev/sda1         8192    532479    524288   256M  c W95 FAT32 (LBA)
+ /dev/sda2       532480 500118191 499585712 238.2G 83 Linux
+ Command (m for help): x
+ Expert command (m for help): i
+ Enter the new disk identifier: 0xd34db33f  < идентификатор может быль любой
+ Disk identifier changed from 0x6c586e13 to 0xd34db33f.
+ Expert command (m for help): r
+ Command (m for help): w
+ The partition table has been altered.
+ Syncing disks.
+
+Шаг 6:
+Правим /boot/cmdline.txt
+sudo cp /boot/cmdline.txt /boot/cmdline.txt.bak
+sudo nano /boot/cmdline.txt
+
+Было:
+console=serial0,115200 console=tty1 root=PARTUUID=6c586e13-02 rootfstype=ext4 elevator=deadline fsck.repair=yes rootwait quiet init=/usr/lib/raspi-config/init_resize.sh
+
+Стало:
+console=serial0,115200 console=tty1 root=PARTUUID=d34db33f-02 rootfstype=ext4 elevator=deadline fsck.repair=yes rootwait quiet init=/usr/lib/raspi-config/init_resize.sh
+
+sudo reboot
+
+и проверяем
+$ findmnt -n -o SOURCE /
+
+ /dev/sda2
+
+Шаг 7:
+Правим /etc/fstab
+sudo nano /etc/fstab
+
+Было:
+proc            /proc           proc    defaults          0       0
+PARTUUID=6c586e13-01  /boot           vfat    defaults          0       2
+PARTUUID=6c586e13-02  /               ext4    defaults,noatime  0       1
+
+Стало:
+proc            /proc           proc    defaults          0       0
+PARTUUID=6c586e13-01  /boot           vfat    defaults          0       2
+PARTUUID=d34db33f-02  /               ext4    defaults,noatime  0       1
+
+Шаг 8:
+Растягиваем ФС на весь диск
+pi@raspberrypi:~ $ sudo fdisk /dev/sda
+ Welcome to fdisk (util-linux 2.33.1).
+ Changes will remain in memory only, until you decide to write them.
+ Be careful before using the write command.
+ Command (m for help): p
+ Disk /dev/sda: 238.5 GiB, 256060514304 bytes, 500118192 sectors
+ Disk model: ASM105x
+ Units: sectors of 1 * 512 = 512 bytes
+ Sector size (logical/physical): 512 bytes / 512 bytes
+ I/O size (minimum/optimal): 512 bytes / 512 bytes
+ Disklabel type: dos
+ Disk identifier: 0xd34db33f
+ Device     Boot  Start     End Sectors  Size Id Type
+ /dev/sda1         8192  532479  524288  256M  c W95 FAT32 (LBA)
+ /dev/sda2       532480 4390911 3858432  1.9G 83 Linux < Стартовый сектор второго раздела
+
+Command (m for help): d
+ Partition number (1,2, default 2): 2
+ Partition 2 has been deleted.
+ Command (m for help): n
+ Partition type
+    p   primary (1 primary, 0 extended, 3 free)
+    e   extended (container for logical partitions)
+ Select (default p): p
+ Partition number (2-4, default 2): 2
+ First sector (2048-500118191, default 2048): 532480 < Тот самый стартовый сектор
+ Last sector, +/-sectors or +/-size{K,M,G,T,P} (532480-500118191, default 500118191): 500118191 
+ Created a new partition 2 of type 'Linux' and of size 238.2 GiB.
+ Partition #2 contains a ext4 signature.
+ Do you want to remove the signature? [Y]es/[N]o: N
+ Command (m for help): w
+ The partition table has been altered.
+ Syncing disks.
+
+sudo resize2fs /dev/sda2
+ resize2fs 1.44.5 (15-Dec-2018)
+ Filesystem at /dev/sda2 is mounted on /; on-line resizing required
+ old_desc_blocks = 1, new_desc_blocks = 15
+ The filesystem on /dev/sda2 is now 62448214 (4k) blocks long.
+
+И проверяем объем /dev/root
+pi@raspberrypi:~ $ df -h
+ Filesystem      Size  Used Avail Use% Mounted on
+ /dev/root       235G  1.3G  224G   1% /
+ devtmpfs        1.8G     0  1.8G   0% /dev
+ tmpfs           2.0G     0  2.0G   0% /dev/shm
+ tmpfs           2.0G  8.5M  1.9G   1% /run
+ tmpfs           5.0M  4.0K  5.0M   1% /run/lock
+ tmpfs           2.0G     0  2.0G   0% /sys/fs/cgroup
+ /dev/mmcblk0p1  253M   52M  201M  21% /boot
+ tmpfs           391M     0  391M   0% /run/user/1000
+
+На этом установка закончена, дальше ставим Docker и все что нужно.
