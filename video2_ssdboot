@@ -1,5 +1,5 @@
 Установка системы на внешний диск
-От BerryBoot я отказался (ввиду корявости монтирования файловой системы) в пользу банальной подмены UUID https://jamesachambers…-for-ssd-flash-drives/
+От BerryBoot я отказался (ввиду корявости монтирования файловой системы) в пользу банальной подмены UUID https://jamesachambers.com/raspberry-pi-4-usb-boot-config-guide-for-ssd-flash-drives/
 Все оказалось очень просто:
 Шаг 1:
 Скачиваем образ интересующей нас системы (В моем случае Raspbian).
