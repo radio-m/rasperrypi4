@@ -1,0 +1,67 @@
+esphome:
+  name: wrelay
+  platform: ESP8266
+  board: esp01_1m
+
+wifi:
+  ssid: "wi-fi ssid"
+  password: "wi-fi password"
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Wrelay Fallback Hotspot"
+    password: "d08IrZvtjFft"
+
+captive_portal:
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  password: "hass"
+
+ota:
+  password: "hass"
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "DIY Wireless relay Button"
+    on_press:
+      - switch.toggle: relay
+  - platform: gpio
+    pin:
+      number: GPIO12
+      inverted: False
+    name: "DIY Wireless Relay"
+
+  - platform: status
+    name: "DIY Wireless relay"
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "IP DIY Wireless relay"
+
+sensor:
+  - platform: wifi_signal # Уровень Wi-Fi сигнала
+    name: "Status DIY Wireless relay"
+    update_interval: 120s 
+    
+switch:
+  - platform: gpio
+    name: "DIY Wireless Relay"
+    pin: GPIO12
+    id: relay
+
+  - platform: restart # Переключатель для перезагрузки устройства
+    name: "Restart DIY Wireless relay"  
+    
+status_led:
+  pin:
+    number: GPIO13
+    inverted: yes
